@@ -7,8 +7,8 @@
 // Fill in your details below
 
 // WiFi Credentials
-const char* ssid = "WIFI_SSID";
-const char* password = "WIFI_PASSWORD";
+const char* ssid = "LilDon";
+const char* password = "LilyandDon219";
 
 // MQTT Broker Details
 const char* mqtt_server = "broker.hivemq.com"; // IP address of your broker
