@@ -7,8 +7,8 @@
 // Fill in your details below
 
 // WiFi Credentials
-const char* ssid = "LilDon";
-const char* password = "LilyandDon219";
+const char* ssid = "MCWarrior-Student";
+const char* password = "QxS884LsC8";
 
 // MQTT Broker Details
 const char* mqtt_server = "broker.hivemq.com"; // IP address of your broker
@@ -89,19 +89,15 @@ void loop() {
   client.loop();
 
   long now = millis();
-  if (now - lastMsg > 5000) { // Publish every 5 seconds
+  if (now - lastMsg > 50) { // Publish every 5 seconds
     lastMsg = now;
 
     // --- Read and Publish for Scale 1 ---
-    if (scale1.is_ready()) {
       float weight1 = scale1.get_units(5);
       Serial.printf("Scale 1 Weight: %.2f kg\n", weight1);
 
       snprintf(msg, 50, "%.2f", weight1);
       client.publish(mqtt_topic, msg);
-    } else {
-      Serial.println("Scale 1 not found.");
-    }
 
     Serial.println("--------------------");
   }
