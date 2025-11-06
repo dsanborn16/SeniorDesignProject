@@ -1,0 +1,285 @@
+#pragma region VEXcode Generated Robot Configuration
+// Make sure all required headers are included.
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <math.h>
+#include <string.h>
+
+#include "vex.h"
+
+using namespace vex;
+
+// Brain should be defined by default
+brain Brain;
+
+// START V5 MACROS
+#define waitUntil(condition)                                                   \
+  do {                                                                         \
+    wait(5, msec);                                                             \
+  } while (!(condition))
+
+#define repeat(iterations)                                                     \
+  for (int iterator = 0; iterator < iterations; iterator++)
+// END V5 MACROS
+
+// Robot configuration code.
+
+// generating and setting random seed
+void initializeRandomSeed(){
+  int systemTime = Brain.Timer.systemHighResolution();
+  double batteryCurrent = Brain.Battery.current();
+  double batteryVoltage = Brain.Battery.voltage(voltageUnits::mV);
+
+  // Combine these values into a single integer
+  int seed = int(batteryVoltage + batteryCurrent * 100) + systemTime;
+
+  // Set the seed
+  srand(seed);
+}
+
+void vexcodeInit() {
+  //Initializing random seed.
+  initializeRandomSeed(); 
+}
+
+// Helper to make playing sounds from the V5 in VEXcode easier and
+// keeps the code cleaner by making it clear what is happening.
+void playVexcodeSound(const char *soundName) {
+  printf("VEXPlaySound:%s\n", soundName);
+  wait(5, msec);
+}
+
+#pragma endregion VEXcode Generated Robot Configuration
+
+// ============================================================================
+// VEX V5 Brain - Bidirectional RS-485 Communication with ESP32
+// ============================================================================
+// This program implements:
+// 1. Bidirectional communication with ESP32 via RS-485
+// 2. Sends Brain status data (battery, voltage, current, time) to ESP32
+// 3. Receives and displays load cell data from ESP32
+// 4. All data is forwarded to MQTT via ESP32
+// ============================================================================
+
+// --- CONFIGURATION ---
+
+// Define which Smart Port is connected to the ESP32/MAX485 setup.
+const int SERIAL_PORT_NUM = 21;
+const uint32_t SERIAL_PORT_INDEX = SERIAL_PORT_NUM - 1;
+
+// Communication baud rate - MUST match ESP32 configuration
+const int BAUD_RATE = 115200;
+
+// Timing configuration
+const int SEND_INTERVAL_MS = 1000;  // Send data every 1 second
+const int RECEIVE_CHECK_MS = 20;     // Check for incoming data every 20ms
+
+// Message protocol delimiters
+const char MSG_START = '<';
+const char MSG_END = '>';
+
+// --- GLOBAL VARIABLES ---
+
+// Buffer for constructing outgoing messages
+char txBuffer[256];
+
+// Buffer for receiving incoming messages
+char rxBuffer[256];
+int rxBufferIndex = 0;
+bool messageInProgress = false;
+
+// Data storage for received load cell data
+float lastLoadCellWeight = 0.0;
+bool loadCellDataValid = false;
+uint32_t lastLoadCellUpdate = 0;
+
+// Timing control
+uint32_t lastSendTime = 0;
+
+// Screen layout constants
+const int SCREEN_LINE_STATUS = 1;
+const int SCREEN_LINE_PORT = 2;
+const int SCREEN_LINE_TX_LABEL = 4;
+const int SCREEN_LINE_TX_DATA = 5;
+const int SCREEN_LINE_RX_LABEL = 7;
+const int SCREEN_LINE_RX_DATA = 8;
+const int SCREEN_LINE_WEIGHT_LABEL = 10;
+const int SCREEN_LINE_WEIGHT_DATA = 11;
+
+// --- FUNCTION PROTOTYPES ---
+
+void initializeSerial();
+void initializeDisplay();
+void sendBrainData();
+void receiveData();
+void processMessage(const char* message);
+void updateDisplay();
+void displayReceivedWeight();
+
+// --- SETUP ---
+
+void initializeSerial() {
+  // Enable generic serial communication on the specified port
+  vexGenericSerialEnable(SERIAL_PORT_INDEX, 0);
+  
+  // Set the baud rate
+  vexGenericSerialBaudrate(SERIAL_PORT_INDEX, BAUD_RATE);
+}
+
+void initializeDisplay() {
+  Brain.Screen.clearScreen();
+  Brain.Screen.setFont(mono15);
+  
+  // Print static labels
+  Brain.Screen.setCursor(SCREEN_LINE_STATUS, 1);
+  Brain.Screen.print("VEX V5 <-> ESP32 Bridge");
+  
+  Brain.Screen.setCursor(SCREEN_LINE_PORT, 1);
+  Brain.Screen.print("Port %d @ %d baud", SERIAL_PORT_NUM, BAUD_RATE);
+  
+  Brain.Screen.setCursor(SCREEN_LINE_TX_LABEL, 1);
+  Brain.Screen.print("TX to ESP32:");
+  
+  Brain.Screen.setCursor(SCREEN_LINE_RX_LABEL, 1);
+  Brain.Screen.print("RX from ESP32:");
+  
+  Brain.Screen.setCursor(SCREEN_LINE_WEIGHT_LABEL, 1);
+  Brain.Screen.print("Load Cell Weight:");
+}
+
+// --- CORE FUNCTIONS ---
+
+void sendBrainData() {
+  // Collect Brain sensor data
+  float batteryPercent = Brain.Battery.capacity();
+  float batteryVoltage = Brain.Battery.voltage();
+  float batteryCurrent = Brain.Battery.current();
+  float systemTime = Brain.Timer.value();
+  
+  // Construct message in protocol format: <BRAIN|time|battery%|voltage|current>
+  int msgLen = snprintf(txBuffer, sizeof(txBuffer), 
+                        "<BRAIN|%.2f|%.1f|%.2f|%.2f>",
+                        systemTime, batteryPercent, batteryVoltage, 
+                        batteryCurrent);
+  
+  if (msgLen > 0 && msgLen < sizeof(txBuffer)) {
+    // Transmit the message
+    vexGenericSerialTransmit(SERIAL_PORT_INDEX, (uint8_t*)txBuffer, msgLen);
+    
+    // Update display
+    Brain.Screen.setCursor(SCREEN_LINE_TX_DATA, 1);
+    Brain.Screen.clearLine(SCREEN_LINE_TX_DATA);
+    Brain.Screen.print("Batt:%.0f%% Volt:%.2fV", batteryPercent, batteryVoltage);
+  }
+}
+
+void receiveData() {
+  // Check if data is available
+  while (vexGenericSerialReceiveAvail(SERIAL_PORT_INDEX) > 0) {
+    int charCode = vexGenericSerialReadChar(SERIAL_PORT_INDEX);
+    
+    if (charCode != -1) {
+      char receivedChar = (char)charCode;
+      
+      // State machine for message parsing
+      if (receivedChar == MSG_START) {
+        // Start of new message
+        messageInProgress = true;
+        rxBufferIndex = 0;
+        rxBuffer[rxBufferIndex] = '\0';
+      }
+      else if (receivedChar == MSG_END && messageInProgress) {
+        // End of message - null terminate and process
+        rxBuffer[rxBufferIndex] = '\0';
+        processMessage(rxBuffer);
+        messageInProgress = false;
+        rxBufferIndex = 0;
+      }
+      else if (messageInProgress && rxBufferIndex < sizeof(rxBuffer) - 1) {
+        // Accumulate message characters
+        rxBuffer[rxBufferIndex++] = receivedChar;
+      }
+    }
+  }
+}
+
+void processMessage(const char* message) {
+  // Expected format: "WEIGHT|value" or "STATUS|text"
+  
+  // Create a working copy since strtok modifies the string
+  char msgCopy[256];
+  strncpy(msgCopy, message, sizeof(msgCopy) - 1);
+  msgCopy[sizeof(msgCopy) - 1] = '\0';
+  
+  // Parse message type
+  char* msgType = strtok(msgCopy, "|");
+  
+  if (msgType != NULL) {
+    if (strcmp(msgType, "WEIGHT") == 0) {
+      // Parse weight value
+      char* weightStr = strtok(NULL, "|");
+      if (weightStr != NULL) {
+        lastLoadCellWeight = atof(weightStr);
+        loadCellDataValid = true;
+        lastLoadCellUpdate = Brain.Timer.systemHighResolution();
+        displayReceivedWeight();
+      }
+    }
+    else if (strcmp(msgType, "STATUS") == 0) {
+      // Parse status message
+      char* statusStr = strtok(NULL, "|");
+      if (statusStr != NULL) {
+        Brain.Screen.setCursor(SCREEN_LINE_RX_DATA, 1);
+        Brain.Screen.clearLine(SCREEN_LINE_RX_DATA);
+        Brain.Screen.print("%.40s", statusStr);
+      }
+    }
+  }
+}
+
+void displayReceivedWeight() {
+  Brain.Screen.setCursor(SCREEN_LINE_WEIGHT_DATA, 1);
+  Brain.Screen.clearLine(SCREEN_LINE_WEIGHT_DATA);
+  
+  if (loadCellDataValid) {
+    Brain.Screen.print("%.2f kg", lastLoadCellWeight);
+  } else {
+    Brain.Screen.print("No data");
+  }
+}
+
+// --- MAIN PROGRAM ---
+
+int main() {
+  // Initialize Robot Configuration
+  vexcodeInit();
+  
+  // Initialize serial communication
+  initializeSerial();
+  
+  // Initialize display
+  initializeDisplay();
+  
+  // Initialize timing
+  lastSendTime = Brain.Timer.systemHighResolution();
+  
+  // Main loop
+  while (true) {
+    uint32_t currentTime = Brain.Timer.systemHighResolution();
+    
+    // Send Brain data at regular intervals
+    if (currentTime - lastSendTime >= SEND_INTERVAL_MS) {
+      sendBrainData();
+      lastSendTime = currentTime;
+    }
+    
+    // Continuously check for incoming data
+    receiveData();
+    
+    // Small delay to prevent CPU overload
+    this_thread::sleep_for(RECEIVE_CHECK_MS);
+  }
+  
+  return 0;
+}
