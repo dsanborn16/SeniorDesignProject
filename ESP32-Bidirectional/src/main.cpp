@@ -30,6 +30,7 @@ const char* MQTT_TOPIC_WEIGHT = "ESP32/loadCell/weight";
 const char* MQTT_TOPIC_BRAIN_BATTERY = "ESP32/vexBrain/battery";
 const char* MQTT_TOPIC_BRAIN_VOLTAGE = "ESP32/vexBrain/voltage";
 const char* MQTT_TOPIC_BRAIN_STATUS = "ESP32/vexBrain/status";
+const char* MQTT_TOPIC_COMMAND = "ESP32/command";  // Subscribe to commands
 
 // --- RS-485 Configuration ---
 #define DE_RE_PIN 4              // MAX485 Direction control pin
@@ -43,10 +44,10 @@ const long RS485_BAUD_RATE = 115200;  // MUST match VEX Brain configuration
 const float CALIBRATION_FACTOR = 106.53;  // Use your calibrated value
 
 // --- Timing Configuration ---
-const unsigned long WEIGHT_READ_INTERVAL = 50;      // Read weight every 50ms
-const unsigned long MQTT_PUBLISH_INTERVAL = 1000;    // Publish to MQTT every 1 second
+const unsigned long WEIGHT_READ_INTERVAL = 5;       // Read weight every 5ms (200Hz)
+const unsigned long MQTT_PUBLISH_INTERVAL = 50;     // Publish to MQTT every 50ms (20Hz)
 const unsigned long WIFI_RECONNECT_INTERVAL = 5000;  // Try WiFi reconnect every 5 seconds
-const unsigned long RS485_READ_INTERVAL = 20;        // Check RS485 every 20ms
+const unsigned long RS485_READ_INTERVAL = 5;         // Check RS485 every 5ms (200Hz)
 
 // --- Message Protocol Configuration ---
 const char MSG_START = '<';
@@ -92,6 +93,7 @@ unsigned long lastRS485Read = 0;
 // Status tracking
 bool wifiConnected = false;
 bool mqttConnected = false;
+bool publishingEnabled = true;  // Control publishing via MQTT commands
 
 // ============================================================================
 // FUNCTION PROTOTYPES
@@ -111,6 +113,7 @@ void sendStatusToVexBrain(const char* status);
 void publishToMQTT();
 void setRS485Transmit();
 void setRS485Receive();
+void mqttCallback(char* topic, byte* payload, unsigned int length);
 
 // ============================================================================
 // SETUP FUNCTIONS
@@ -144,6 +147,7 @@ void setupWiFi() {
 
 void setupMQTT() {
   mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
+  mqttClient.setCallback(mqttCallback);  // Set callback for incoming messages
   Serial.print("MQTT broker set to: ");
   Serial.println(MQTT_BROKER);
 }
@@ -228,6 +232,11 @@ void reconnectMQTT() {
     if (mqttClient.connect(clientId.c_str())) {
       mqttConnected = true;
       Serial.println("connected");
+      
+      // Subscribe to command topic
+      mqttClient.subscribe(MQTT_TOPIC_COMMAND);
+      Serial.print("Subscribed to: ");
+      Serial.println(MQTT_TOPIC_COMMAND);
       
       // Send initialization status to VEX Brain
       sendStatusToVexBrain("MQTT Connected");
@@ -342,7 +351,7 @@ void sendStatusToVexBrain(const char* status) {
 }
 
 void publishToMQTT() {
-  if (!mqttConnected) {
+  if (!mqttConnected || !publishingEnabled) {
     return;
   }
   
@@ -372,6 +381,48 @@ void publishToMQTT() {
     mqttClient.publish(MQTT_TOPIC_BRAIN_STATUS, payload);
     
     Serial.println("Published VEX Brain data to MQTT");
+  }
+}
+
+// ============================================================================
+// MQTT CALLBACK - Handle incoming commands
+// ============================================================================
+
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  // Convert payload to string
+  char message[length + 1];
+  memcpy(message, payload, length);
+  message[length] = '\0';
+  
+  Serial.printf("MQTT Message received [%s]: %s\n", topic, message);
+  
+  // Check if it's a command topic
+  if (strcmp(topic, MQTT_TOPIC_COMMAND) == 0) {
+    // Convert to lowercase for case-insensitive comparison
+    String cmd = String(message);
+    cmd.toLowerCase();
+    
+    if (cmd == "start" || cmd == "enable" || cmd == "on" || cmd == "1") {
+      publishingEnabled = true;
+      Serial.println("✅ Publishing ENABLED");
+      sendStatusToVexBrain("Publishing Started");
+      mqttClient.publish(MQTT_TOPIC_COMMAND, "Publishing: ENABLED");
+    } 
+    else if (cmd == "stop" || cmd == "disable" || cmd == "off" || cmd == "0") {
+      publishingEnabled = false;
+      Serial.println("🛑 Publishing DISABLED");
+      sendStatusToVexBrain("Publishing Stopped");
+      mqttClient.publish(MQTT_TOPIC_COMMAND, "Publishing: DISABLED");
+    }
+    else if (cmd == "status") {
+      String statusMsg = publishingEnabled ? "Publishing: ENABLED" : "Publishing: DISABLED";
+      mqttClient.publish(MQTT_TOPIC_COMMAND, statusMsg.c_str());
+      Serial.println(statusMsg);
+    }
+    else {
+      Serial.printf("❌ Unknown command: %s\n", message);
+      mqttClient.publish(MQTT_TOPIC_COMMAND, "Unknown command. Use: start/stop/status");
+    }
   }
 }
 

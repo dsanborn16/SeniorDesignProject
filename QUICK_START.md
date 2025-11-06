@@ -23,9 +23,8 @@ pio device monitor
 ```
 
 ### 3. Connect Hardware
-- Wire the MAX485 module to the ESP32 as per `WIRING_INSTRUCTIONS.md`
-- Connect VEX Smart Port 21 directly to RS-485 bus (Pin 3→A, Pin 4→B)
-- Ensure common ground between VEX Pin 2 and ESP32 GND
+- Wire both MAX485 modules as per `WIRING_INSTRUCTIONS.md`
+- Connect A-to-A and B-to-B between MAX485 modules
 - Connect HX711 load cell to ESP32
 - Power both systems
 
@@ -82,9 +81,8 @@ mosquitto_sub -h broker.hivemq.com -t "ESP32/#" -v
 
 ### No RS-485 Communication
 1. **Swap A and B wires** (most common issue!)
-2. Ensure common ground between VEX Pin 2 and ESP32 GND
-3. Check baud rate is 115200 on both sides
-4. Verify MAX485 module has power
+2. Check baud rate is 115200 on both sides
+3. Verify MAX485 modules have power
 
 ### No Load Cell Data
 1. Check HX711 wiring (DOUT→GPIO25, SCK→GPIO26)

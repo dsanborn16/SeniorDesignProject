@@ -73,8 +73,8 @@ Follow the detailed wiring guide in `WIRING_INSTRUCTIONS.md`
 ```
 ┌─────────────┐      RS-485       ┌─────────────┐
 │  VEX Brain  │ ←────────────────→│    ESP32    │
-│             │ (ONE MAX485 chip) │             │
-│  Sends:     │ (on ESP32 side)   │  Receives:  │
+│             │   (MAX485 x2)     │             │
+│  Sends:     │                   │  Receives:  │
 │  - Battery  │                   │  - Brain    │
 │  - Voltage  │                   │    data     │
 │  - Current  │                   │  Sends:     │
@@ -117,21 +117,19 @@ mosquitto_sub -h broker.hivemq.com -t "ESP32/#" -v
 
 ### VEX Side
 - 1x VEX V5 Brain
+- 1x MAX485 RS-485 transceiver
 - Smart Port cable (Port 21)
-- **No MAX485 needed** - VEX connects directly to RS-485 bus
 
 ### ESP32 Side
 - 1x ESP32 Dev Board
-- **1x MAX485 RS-485 transceiver** (ESP32 side only)
+- 1x MAX485 RS-485 transceiver
 - 1x HX711 Load Cell Amplifier
 - 1x Load Cell (strain gauge)
 - USB cable for programming
 
 ### RS-485 Bus
 - Twisted pair cable (CAT5e recommended)
-- Connect VEX Pin 3 (TX) to MAX485 A
-- Connect VEX Pin 4 (RX) to MAX485 B
-- Connect VEX Pin 2 (GND) to ESP32 GND (common ground essential)
+- Connect A-to-A and B-to-B between MAX485 modules
 
 ---
 

@@ -9,8 +9,8 @@ This system implements **bidirectional communication** between a VEX V5 Brain an
 ```
 ┌─────────────────┐         RS-485          ┌─────────────────┐
 │   VEX V5 Brain  │ ←────────────────────→  │     ESP32       │
-│                 │    (ONE MAX485 chip)    │                 │
-│  - Sends: Brain │      (on ESP32 side)    │  - Receives:    │
+│                 │      (MAX485 x2)        │                 │
+│  - Sends: Brain │                         │  - Receives:    │
 │    battery data │                         │    Brain data   │
 │    temperature  │                         │  - Sends: Load  │
 │    voltage      │                         │    cell weight  │
@@ -85,15 +85,17 @@ Example: `<STATUS|MQTT Connected>`
 
 ### VEX V5 Brain Side
 - 1x VEX V5 Brain
+- 1x MAX485 RS-485 transceiver module
 - 1x Smart Port cable (or custom wiring to Smart Port 21)
 - Wiring:
-  - VEX Pin 3 (TX) → RS-485 A line
-  - VEX Pin 4 (RX) → RS-485 B line
-  - VEX Pin 2 (GND) → Common ground with ESP32
+  - MAX485 RO → Smart Port RX
+  - MAX485 DI → Smart Port TX
+  - MAX485 DE & RE → Tied together, not used (VEX controls direction)
+  - MAX485 A & B → RS-485 bus lines
 
 ### ESP32 Side
 - 1x ESP32 development board
-- **1x MAX485 RS-485 transceiver module** (ESP32 side only)
+- 1x MAX485 RS-485 transceiver module
 - 1x HX711 load cell amplifier
 - 1x Load cell (strain gauge)
 - Power supply for ESP32 and peripherals
@@ -102,8 +104,7 @@ Example: `<STATUS|MQTT Connected>`
     - RO → GPIO 16 (RX)
     - DI → GPIO 17 (TX)
     - DE & RE → GPIO 4 (tied together)
-    - A → VEX Smart Port Pin 3 (RS-485 A line)
-    - B → VEX Smart Port Pin 4 (RS-485 B line)
+    - A & B → RS-485 bus lines (connect to VEX side)
   - **HX711 to ESP32:**
     - DOUT → GPIO 25
     - SCK → GPIO 26
@@ -111,9 +112,7 @@ Example: `<STATUS|MQTT Connected>`
     - GND → GND
 
 ### RS-485 Bus
-- Connect VEX Pin 3 (TX) to MAX485 A
-- Connect VEX Pin 4 (RX) to MAX485 B
-- Connect VEX Pin 2 (GND) to ESP32 GND (common ground essential)
+- Connect A to A and B to B between both MAX485 modules
 - Use twisted pair cable for reliable communication
 - Recommended: 120Ω termination resistors on both ends for long cables
 
