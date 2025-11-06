@@ -28,7 +28,7 @@ const char* MQTT_BROKER = "broker.hivemq.com";
 const int MQTT_PORT = 1883;
 const char* MQTT_TOPIC_WEIGHT = "ESP32/loadCell/weight";
 const char* MQTT_TOPIC_BRAIN_BATTERY = "ESP32/vexBrain/battery";
-const char* MQTT_TOPIC_BRAIN_TEMP = "ESP32/vexBrain/temperature";
+const char* MQTT_TOPIC_BRAIN_VOLTAGE = "ESP32/vexBrain/voltage";
 const char* MQTT_TOPIC_BRAIN_STATUS = "ESP32/vexBrain/status";
 
 // --- RS-485 Configuration ---
@@ -74,11 +74,10 @@ struct BrainData {
   float batteryPercent;
   float batteryVoltage;
   float batteryCurrent;
-  float temperature;
   bool dataValid;
   unsigned long lastUpdate;
 };
-BrainData brainData = {0, 0, 0, 0, 0, false, 0};
+BrainData brainData = {0, 0, 0, 0, false, 0};
 
 // Load cell data
 float currentWeight = 0.0;
@@ -279,7 +278,7 @@ void readRS485Data() {
 }
 
 void processReceivedMessage(const char* message) {
-  // Expected format: "BRAIN|time|battery%|voltage|current|temp"
+  // Expected format: "BRAIN|time|battery%|voltage|current"
   
   Serial.print("Received from VEX: ");
   Serial.println(message);
@@ -306,14 +305,11 @@ void processReceivedMessage(const char* message) {
     token = strtok(NULL, "|");  // current
     if (token) brainData.batteryCurrent = atof(token);
     
-    token = strtok(NULL, "|");  // temperature
-    if (token) brainData.temperature = atof(token);
-    
     brainData.dataValid = true;
     brainData.lastUpdate = millis();
     
-    Serial.printf("Brain Data - Battery: %.1f%%, Temp: %.1f°C\n", 
-                  brainData.batteryPercent, brainData.temperature);
+    Serial.printf("Brain Data - Battery: %.1f%%, Voltage: %.2fV\n", 
+                  brainData.batteryPercent, brainData.batteryVoltage);
   }
 }
 
@@ -366,13 +362,13 @@ void publishToMQTT() {
     snprintf(payload, sizeof(payload), "%.1f", brainData.batteryPercent);
     mqttClient.publish(MQTT_TOPIC_BRAIN_BATTERY, payload);
     
-    // Temperature
-    snprintf(payload, sizeof(payload), "%.1f", brainData.temperature);
-    mqttClient.publish(MQTT_TOPIC_BRAIN_TEMP, payload);
+    // Voltage
+    snprintf(payload, sizeof(payload), "%.2f", brainData.batteryVoltage);
+    mqttClient.publish(MQTT_TOPIC_BRAIN_VOLTAGE, payload);
     
     // Combined status
-    snprintf(payload, sizeof(payload), "Batt:%.1f%% Temp:%.1fC Volt:%.2fV", 
-             brainData.batteryPercent, brainData.temperature, brainData.batteryVoltage);
+    snprintf(payload, sizeof(payload), "Batt:%.1f%% Volt:%.2fV Curr:%.2fA", 
+             brainData.batteryPercent, brainData.batteryVoltage, brainData.batteryCurrent);
     mqttClient.publish(MQTT_TOPIC_BRAIN_STATUS, payload);
     
     Serial.println("Published VEX Brain data to MQTT");

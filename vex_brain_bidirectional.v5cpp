@@ -57,7 +57,7 @@ void playVexcodeSound(const char *soundName) {
 // ============================================================================
 // This program implements:
 // 1. Bidirectional communication with ESP32 via RS-485
-// 2. Sends Brain status data (battery, temperature, time) to ESP32
+// 2. Sends Brain status data (battery, voltage, current, time) to ESP32
 // 3. Receives and displays load cell data from ESP32
 // 4. All data is forwarded to MQTT via ESP32
 // ============================================================================
@@ -78,7 +78,6 @@ const int RECEIVE_CHECK_MS = 20;     // Check for incoming data every 20ms
 // Message protocol delimiters
 const char MSG_START = '<';
 const char MSG_END = '>';
-const char MSG_SEPARATOR = '|';
 
 // --- GLOBAL VARIABLES ---
 
@@ -156,14 +155,13 @@ void sendBrainData() {
   float batteryPercent = Brain.Battery.capacity();
   float batteryVoltage = Brain.Battery.voltage();
   float batteryCurrent = Brain.Battery.current();
-  float brainTemp = Brain.getBatteryTemperature();
   float systemTime = Brain.Timer.value();
   
-  // Construct message in protocol format: <BRAIN|time|battery%|voltage|current|temp>
+  // Construct message in protocol format: <BRAIN|time|battery%|voltage|current>
   int msgLen = snprintf(txBuffer, sizeof(txBuffer), 
-                        "<BRAIN|%.2f|%.1f|%.2f|%.2f|%.1f>",
+                        "<BRAIN|%.2f|%.1f|%.2f|%.2f>",
                         systemTime, batteryPercent, batteryVoltage, 
-                        batteryCurrent, brainTemp);
+                        batteryCurrent);
   
   if (msgLen > 0 && msgLen < sizeof(txBuffer)) {
     // Transmit the message
@@ -172,7 +170,7 @@ void sendBrainData() {
     // Update display
     Brain.Screen.setCursor(SCREEN_LINE_TX_DATA, 1);
     Brain.Screen.clearLine(SCREEN_LINE_TX_DATA);
-    Brain.Screen.print("Batt:%.0f%% Temp:%.1fC", batteryPercent, brainTemp);
+    Brain.Screen.print("Batt:%.0f%% Volt:%.2fV", batteryPercent, batteryVoltage);
   }
 }
 
