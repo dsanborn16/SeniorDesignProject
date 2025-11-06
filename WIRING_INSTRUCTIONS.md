@@ -3,6 +3,8 @@
 ## Overview
 This document provides detailed wiring instructions for connecting the VEX V5 Brain to an ESP32 via RS-485, with HX711 load cell integration.
 
+**Note:** This system uses **only ONE MAX485 chip** on the ESP32 side. The VEX V5 Brain connects directly to the RS-485 bus lines (A and B).
+
 ---
 
 ## Bill of Materials
@@ -10,7 +12,7 @@ This document provides detailed wiring instructions for connecting the VEX V5 Br
 ### Electronic Components
 - 1x VEX V5 Brain
 - 1x ESP32 Development Board (ESP32-DevKitC or similar)
-- 2x MAX485 RS-485 Transceiver Modules
+- **1x MAX485 RS-485 Transceiver Module** (ESP32 side only)
 - 1x HX711 Load Cell Amplifier Module
 - 1x Load Cell (Strain Gauge, appropriate capacity for your application)
 - 1x Power supply for ESP32 (USB or 5V regulated)
@@ -23,7 +25,7 @@ This document provides detailed wiring instructions for connecting the VEX V5 Br
 
 ---
 
-## Part 1: VEX V5 Brain to MAX485 #1
+## Part 1: VEX V5 Brain Direct Connection to RS-485 Bus
 
 ### Smart Port 21 Pinout
 The VEX V5 Smart Ports use an 8-pin connector. For generic serial communication on Port 21:
@@ -36,43 +38,42 @@ The VEX V5 Smart Ports use an 8-pin connector. For generic serial communication 
 | 4   | RX (VEX) | Green               |
 | 5-8 | N/C      | -                   |
 
-### MAX485 Module #1 (VEX Side) Connections
+### VEX V5 Brain to RS-485 Bus Connection
 
-| MAX485 Pin | Connect To | Notes |
-|------------|------------|-------|
-| VCC        | Smart Port Pin 1 (+5V) | Power for the MAX485 module |
-| GND        | Smart Port Pin 2 (GND) | Common ground |
-| RO (Receiver Out) | Smart Port Pin 4 (RX) | VEX receives data from this pin |
-| DI (Driver In) | Smart Port Pin 3 (TX) | VEX transmits data to this pin |
-| DE (Driver Enable) | VCC (+5V) or leave floating* | See note below |
-| RE (Receiver Enable) | GND (0V) or leave floating* | See note below |
-| A          | RS-485 Bus Line A | Connect to MAX485 #2 |
-| B          | RS-485 Bus Line B | Connect to MAX485 #2 |
+**The VEX V5 Brain connects DIRECTLY to the RS-485 bus lines (A and B) without a MAX485 chip.**
 
-**Important Note on DE/RE pins:**
-The VEX V5 generic serial implementation typically controls direction internally. You can:
-- **Option 1**: Tie DE to VCC and RE to GND (always in transmit mode, but VEX usually manages this)
-- **Option 2**: Leave DE and RE floating if your MAX485 module has pull-up/pull-down resistors
-- **Option 3**: Experiment with both tied to VCC or both tied to GND
+The VEX V5 Brain has a built-in UART that can communicate over RS-485 protocol using its Smart Port serial interface. You simply connect:
 
-For most applications, **tie DE high (+5V) and RE low (GND)** for simplicity.
+| VEX Smart Port Pin | Connect To | Notes |
+|-------------------|------------|-------|
+| Pin 1 (+5V)       | Not connected to RS-485 bus* | Can be used to power other circuits if needed |
+| Pin 2 (GND)       | Common ground with ESP32 | Essential for proper communication |
+| Pin 3 (TX)        | RS-485 Bus Line A | VEX transmit connects to A line |
+| Pin 4 (RX)        | RS-485 Bus Line B | VEX receive connects to B line |
+
+**Important Notes:**
+- The VEX V5 Brain TX and RX pins are connected directly to the RS-485 differential pair (A and B)
+- Pin 3 (TX) connects to RS-485 A line
+- Pin 4 (RX) connects to RS-485 B line
+- Ensure common ground between VEX and ESP32 systems
+- The VEX Brain handles the serial communication in software; no external transceiver needed on the VEX side
 
 ---
 
-## Part 2: ESP32 to MAX485 #2
+## Part 2: ESP32 to MAX485
 
-### MAX485 Module #2 (ESP32 Side) Connections
+### MAX485 Module (ESP32 Side) Connections
 
 | MAX485 Pin | Connect To | Notes |
 |------------|------------|-------|
 | VCC        | ESP32 3.3V or 5V | Check your module's voltage rating |
-| GND        | ESP32 GND | Common ground |
+| GND        | ESP32 GND | Common ground with VEX system |
 | RO (Receiver Out) | ESP32 GPIO 16 | ESP32 receives data (UART2 RX) |
 | DI (Driver In) | ESP32 GPIO 17 | ESP32 transmits data (UART2 TX) |
 | DE (Driver Enable) | ESP32 GPIO 4 | Direction control (HIGH = transmit) |
 | RE (Receiver Enable) | ESP32 GPIO 4 | Direction control (LOW = receive) |
-| A          | RS-485 Bus Line A | Connect to MAX485 #1 |
-| B          | RS-485 Bus Line B | Connect to MAX485 #1 |
+| A          | RS-485 Bus Line A | Connect to VEX Smart Port Pin 3 |
+| B          | RS-485 Bus Line B | Connect to VEX Smart Port Pin 4 |
 
 **Important**: DE and RE are tied together and connected to GPIO 4. This single pin controls the direction of the RS-485 transceiver.
 
@@ -117,14 +118,15 @@ Consult your load cell's datasheet if colors differ.
 
 ## Part 4: RS-485 Bus Wiring
 
-### Connecting the Two MAX485 Modules
+### Connecting VEX to ESP32's MAX485
 
 Use **twisted pair cable** for best noise immunity. CAT5e ethernet cable works excellently—use one pair for A and B.
 
-| MAX485 #1 (VEX Side) | MAX485 #2 (ESP32 Side) |
-|----------------------|------------------------|
-| A                    | A                      |
-| B                    | B                      |
+| VEX Smart Port 21 | ESP32 MAX485 | Wire Function |
+|-------------------|--------------|---------------|
+| Pin 3 (TX)        | A            | RS-485 A line |
+| Pin 4 (RX)        | B            | RS-485 B line |
+| Pin 2 (GND)       | GND (via ESP32) | Common ground |
 
 ### Cable Length Considerations
 
@@ -136,8 +138,8 @@ Use **twisted pair cable** for best noise immunity. CAT5e ethernet cable works e
 
 ### Adding Termination Resistors (Optional)
 If you experience communication errors over longer cables:
-1. Connect a 120Ω resistor between A and B at the VEX side MAX485
-2. Connect a 120Ω resistor between A and B at the ESP32 side MAX485
+1. Connect a 120Ω resistor between A and B at the VEX side (across Smart Port pins 3 and 4)
+2. Connect a 120Ω resistor between A and B at the ESP32 MAX485 module
 
 ---
 
@@ -148,52 +150,42 @@ If you experience communication errors over longer cables:
 │                           VEX V5 BRAIN                                  │
 │                         Smart Port 21                                   │
 │  ┌────────┐                                                             │
-│  │ Pin 1  │───── +5V ────────────────┐                                  │
-│  │ Pin 2  │───── GND ────────────────┼─────────┐                        │
-│  │ Pin 3  │───── TX ─────────────┐   │         │                        │
-│  │ Pin 4  │───── RX ─────────┐   │   │         │                        │
-│  └────────┘                  │   │   │         │                        │
-└──────────────────────────────┼───┼───┼─────────┼────────────────────────┘
-                               │   │   │         │
-                          ┌────┴───┴───┴─────────┴───┐
-                          │   MAX485 Module #1        │
-                          │  (VEX Side)               │
-                          │   RO ←────── Pin 4 (RX)   │
-                          │   DI ←────── Pin 3 (TX)   │
-                          │   DE ←────── +5V          │
-                          │   RE ←────── GND          │
-                          │   VCC ←───── +5V          │
-                          │   GND ←───── GND          │
-                          │   A  ─────── (Twisted     │
-                          │   B  ─────── Pair Cable)  │
-                          └────┬───┬─────────────────┘
-                               │   │
-                   RS-485 Bus  │   │  (Twisted Pair)
-                   A ──────────┘   └────────── B
-                   │                           │
-                   │                           │
-                          ┌────┴───┴─────────────────┐
-                          │   MAX485 Module #2        │
-                          │  (ESP32 Side)             │
-                          │   RO ─────→ GPIO 16       │
-                          │   DI ←──── GPIO 17        │
-                          │   DE ←──── GPIO 4 ────┐   │
-                          │   RE ←──── GPIO 4 ────┘   │
-                          │   VCC ←─── 3.3V           │
-                          │   GND ←─── GND            │
-                          └───────────────────────────┘
-                                      │
-                                      │
-            ┌─────────────────────────┴─────────────────────────────┐
-            │                    ESP32 Board                         │
-            │  GPIO 4  ──→ MAX485 DE/RE                             │
-            │  GPIO 16 ──→ MAX485 RO (RX)                           │
-            │  GPIO 17 ──→ MAX485 DI (TX)                           │
-            │  GPIO 25 ──→ HX711 DOUT                               │
-            │  GPIO 26 ──→ HX711 SCK                                │
-            │  3.3V ─────→ MAX485 VCC, HX711 VCC                    │
-            │  GND ──────→ MAX485 GND, HX711 GND                    │
-            └───────────────────────┬───────────────────────────────┘
+│  │ Pin 1  │───── +5V (not connected to RS-485)                          │
+│  │ Pin 2  │───── GND ────────────────────────────────┐                  │
+│  │ Pin 3  │───── TX ──────────────────┐              │                  │
+│  │ Pin 4  │───── RX ──────────────┐   │              │                  │
+│  └────────┘                       │   │              │                  │
+└───────────────────────────────────┼───┼──────────────┼──────────────────┘
+                                    │   │              │
+                   RS-485 Bus       │   │              │
+                   B ───────────────┘   └───────── A   │
+                   │                                │   │
+                   │         (Twisted Pair Cable)   │   │
+                   │                                │   │
+                   │                                │   │
+                          ┌────┴────────────────────┴───┴───┐
+                          │   MAX485 Module                  │
+                          │  (ESP32 Side - ONLY ONE CHIP)    │
+                          │   RO ─────→ GPIO 16              │
+                          │   DI ←──── GPIO 17               │
+                          │   DE ←──── GPIO 4 ────┐          │
+                          │   RE ←──── GPIO 4 ────┘          │
+                          │   A  ←──── VEX Pin 3 (TX)        │
+                          │   B  ←──── VEX Pin 4 (RX)        │
+                          │   VCC ←─── 3.3V                  │
+                          │   GND ←─── GND (Common Ground)   │
+                          └──────────────┬───────────────────┘
+                                         │
+            ┌────────────────────────────┴──────────────────────────────┐
+            │                    ESP32 Board                            │
+            │  GPIO 4  ──→ MAX485 DE/RE                                │
+            │  GPIO 16 ──→ MAX485 RO (RX)                              │
+            │  GPIO 17 ──→ MAX485 DI (TX)                              │
+            │  GPIO 25 ──→ HX711 DOUT                                  │
+            │  GPIO 26 ──→ HX711 SCK                                   │
+            │  3.3V ─────→ MAX485 VCC, HX711 VCC                       │
+            │  GND ──────→ MAX485 GND, HX711 GND, VEX GND (Common)     │
+            └───────────────────────┬──────────────────────────────────┘
                                     │
                           ┌─────────┴──────────┐
                           │   HX711 Module     │
@@ -221,29 +213,25 @@ If you experience communication errors over longer cables:
 
 ## Step-by-Step Wiring Procedure
 
-### Step 1: Wire VEX Side MAX485
-1. Connect MAX485 #1 VCC to Smart Port 21 Pin 1 (+5V)
-2. Connect MAX485 #1 GND to Smart Port 21 Pin 2 (GND)
-3. Connect MAX485 #1 RO to Smart Port 21 Pin 4 (RX)
-4. Connect MAX485 #1 DI to Smart Port 21 Pin 3 (TX)
-5. Connect MAX485 #1 DE to +5V
-6. Connect MAX485 #1 RE to GND
+### Step 1: Wire ESP32 to MAX485
+1. Connect MAX485 VCC to ESP32 3.3V (or 5V if your module requires it)
+2. Connect MAX485 GND to ESP32 GND
+3. Connect MAX485 RO to ESP32 GPIO 16
+4. Connect MAX485 DI to ESP32 GPIO 17
+5. Connect MAX485 DE to ESP32 GPIO 4
+6. Connect MAX485 RE to ESP32 GPIO 4 (same pin as DE)
 7. Leave A and B pins for now
 
-### Step 2: Wire ESP32 Side MAX485
-1. Connect MAX485 #2 VCC to ESP32 3.3V
-2. Connect MAX485 #2 GND to ESP32 GND
-3. Connect MAX485 #2 RO to ESP32 GPIO 16
-4. Connect MAX485 #2 DI to ESP32 GPIO 17
-5. Connect MAX485 #2 DE to ESP32 GPIO 4
-6. Connect MAX485 #2 RE to ESP32 GPIO 4 (same pin as DE)
-7. Leave A and B pins for now
+### Step 2: Connect VEX to RS-485 Bus
+1. Cut a length of twisted pair cable (use one pair from CAT5e if available)
+2. Connect one wire to VEX Smart Port 21 Pin 3 (TX)
+3. Connect the other wire to VEX Smart Port 21 Pin 4 (RX)
+4. Connect VEX Smart Port 21 Pin 2 (GND) to ESP32 GND (common ground is essential)
 
-### Step 3: Connect RS-485 Bus
-1. Cut a length of twisted pair cable
-2. Connect one wire to A on both MAX485 modules
-3. Connect the other wire to B on both MAX485 modules
-4. **Important**: Keep polarity consistent (A-to-A, B-to-B)
+### Step 3: Complete RS-485 Bus Connection
+1. Connect the wire from VEX Pin 3 (TX) to MAX485 A pin
+2. Connect the wire from VEX Pin 4 (RX) to MAX485 B pin
+3. **Important**: Keep polarity consistent throughout the connection
 
 ### Step 4: Wire HX711 to ESP32
 1. Connect HX711 VCC to ESP32 3.3V
@@ -261,7 +249,7 @@ If you experience communication errors over longer cables:
 ### Step 6: Power Connections
 1. Power VEX V5 Brain via battery
 2. Power ESP32 via USB or external 5V supply
-3. Verify all ground connections are common
+3. **Ensure common ground connection between VEX Pin 2 and ESP32 GND**
 
 ---
 
@@ -271,7 +259,7 @@ If you experience communication errors over longer cables:
 1. Power on VEX V5 Brain
 2. Power on ESP32
 3. Verify no smoke, unusual heat, or burning smells
-4. Check that MAX485 modules have power LEDs illuminated (if equipped)
+4. Check that MAX485 module has power LED illuminated (if equipped)
 
 ### Test 2: ESP32 Serial Monitor
 1. Connect ESP32 to computer via USB
@@ -302,10 +290,10 @@ If you experience communication errors over longer cables:
 
 ### No RS-485 Communication
 - **Swap A and B wires** - Polarity might be reversed
-- Check that VEX is transmitting (monitor with oscilloscope if available)
+- Ensure common ground connection between VEX and ESP32
 - Verify baud rates match (115200 on both sides)
 - Test with very short cable first (eliminate cable issues)
-- Check DE/RE pins on VEX side MAX485
+- Check DE/RE pins on ESP32 MAX485 are both connected to GPIO 4
 
 ### Load Cell Not Working
 - Verify HX711 VCC is 3.3V (some modules require 5V)
@@ -319,10 +307,11 @@ If you experience communication errors over longer cables:
 - Check WiFi signal strength
 
 ### Intermittent Communication
-- Add RS-485 termination resistors (120Ω across A-B at both ends)
+- Add RS-485 termination resistors (120Ω across A-B at both ends: VEX side and MAX485 side)
 - Use shielded twisted pair cable
 - Keep cable away from power lines and motors
 - Shorten cable length if possible
+- Ensure common ground is solid
 
 ---
 
@@ -341,11 +330,11 @@ If you experience communication errors over longer cables:
 
 ## Pin Configuration Quick Reference
 
-### VEX V5 Smart Port 21
-- TX: Pin 3
-- RX: Pin 4
-- +5V: Pin 1
-- GND: Pin 2
+### VEX V5 Smart Port 21 (Direct RS-485 Connection)
+- TX (Pin 3): Connects to RS-485 A line
+- RX (Pin 4): Connects to RS-485 B line
+- GND (Pin 2): Common ground with ESP32
+- +5V (Pin 1): Not used for RS-485
 
 ### ESP32 GPIOs
 - GPIO 4: RS-485 Direction (DE/RE)
@@ -354,12 +343,13 @@ If you experience communication errors over longer cables:
 - GPIO 25: HX711 Data (DOUT)
 - GPIO 26: HX711 Clock (SCK)
 
-### MAX485 (Both Sides)
-- A & B: RS-485 differential pair
-- DE: Driver Enable (HIGH = transmit)
-- RE: Receiver Enable (LOW = receive)
-- RO: Receiver Output (to MCU RX)
-- DI: Driver Input (from MCU TX)
+### MAX485 (ESP32 Side - ONLY ONE CHIP)
+- A: RS-485 A line (connects to VEX Pin 3)
+- B: RS-485 B line (connects to VEX Pin 4)
+- DE: Driver Enable (HIGH = transmit) → GPIO 4
+- RE: Receiver Enable (LOW = receive) → GPIO 4
+- RO: Receiver Output → GPIO 16
+- DI: Driver Input → GPIO 17
 
 ---
 
