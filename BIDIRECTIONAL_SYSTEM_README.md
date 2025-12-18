@@ -9,7 +9,7 @@ This system implements **bidirectional communication** between a VEX V5 Brain an
 ```
 ┌─────────────────┐         RS-485          ┌─────────────────┐
 │   VEX V5 Brain  │ ←────────────────────→  │     ESP32       │
-│                 │      (MAX485 x2)        │                 │
+│                 │      (MAX485 x1)        │                 │
 │  - Sends: Brain │                         │  - Receives:    │
 │    battery data │                         │    Brain data   │
 │    temperature  │                         │  - Sends: Load  │
@@ -85,17 +85,16 @@ Example: `<STATUS|MQTT Connected>`
 
 ### VEX V5 Brain Side
 - 1x VEX V5 Brain
-- 1x MAX485 RS-485 transceiver module
 - 1x Smart Port cable (or custom wiring to Smart Port 21)
 - Wiring:
-  - MAX485 RO → Smart Port RX
-  - MAX485 DI → Smart Port TX
-  - MAX485 DE & RE → Tied together, not used (VEX controls direction)
-  - MAX485 A & B → RS-485 bus lines
+  - VEX TX → MAX485 DI
+  - VEX RX → MAX485 RO
+  - VEX +5V → MAX485 VCC
+  - VEX GND → MAX485 GND
 
 ### ESP32 Side
 - 1x ESP32 development board
-- 1x MAX485 RS-485 transceiver module
+- 1x MAX485 RS-485 transceiver module (shared with VEX)
 - 1x HX711 load cell amplifier
 - 1x Load cell (strain gauge)
 - Power supply for ESP32 and peripherals
@@ -104,17 +103,18 @@ Example: `<STATUS|MQTT Connected>`
     - RO → GPIO 16 (RX)
     - DI → GPIO 17 (TX)
     - DE & RE → GPIO 4 (tied together)
-    - A & B → RS-485 bus lines (connect to VEX side)
+    - VCC → ESP32 3.3V
+    - GND → ESP32 GND
   - **HX711 to ESP32:**
     - DOUT → GPIO 25
     - SCK → GPIO 26
     - VCC → 3.3V or 5V
     - GND → GND
 
-### RS-485 Bus
-- Connect A to A and B to B between both MAX485 modules
+### RS-485 Connection
+- Single MAX485 module connects both VEX and ESP32
 - Use twisted pair cable for reliable communication
-- Recommended: 120Ω termination resistors on both ends for long cables
+- Recommended: 120Ω termination resistor if experiencing issues
 
 ## Configuration
 

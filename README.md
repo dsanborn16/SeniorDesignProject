@@ -73,7 +73,7 @@ Follow the detailed wiring guide in `WIRING_INSTRUCTIONS.md`
 ```
 ┌─────────────┐      RS-485       ┌─────────────┐
 │  VEX Brain  │ ←────────────────→│    ESP32    │
-│             │   (MAX485 x2)     │             │
+│             │   (MAX485 x1)     │             │
 │  Sends:     │                   │  Receives:  │
 │  - Battery  │                   │  - Brain    │
 │  - Voltage  │                   │    data     │

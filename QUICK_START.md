@@ -23,8 +23,8 @@ pio device monitor
 ```
 
 ### 3. Connect Hardware
-- Wire both MAX485 modules as per `WIRING_INSTRUCTIONS.md`
-- Connect A-to-A and B-to-B between MAX485 modules
+- Wire MAX485 module as per `WIRING_INSTRUCTIONS.md`
+- Connect both VEX and ESP32 to the single MAX485 module
 - Connect HX711 load cell to ESP32
 - Power both systems
 
